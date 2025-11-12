@@ -29,6 +29,32 @@ train_datagen = ImageDataGenerator(
 
 val_datagen = ImageDataGenerator(rescale = 1./255)
 
+# Clean up corrupted images before training
+print("\nChecking for corrupted images...")
+from PIL import Image
+import glob
+
+def clean_corrupted_images(directory):
+    """Remove corrupted image files."""
+    corrupted_count = 0
+    image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']
+    
+    for ext in image_extensions:
+        for img_path in glob.glob(os.path.join(directory, '**', ext), recursive=True):
+            try:
+                img = Image.open(img_path)
+                img.verify()
+            except Exception as e:
+                print(f"Removing corrupted image: {img_path}")
+                os.remove(img_path)
+                corrupted_count += 1
+    
+    return corrupted_count
+
+corrupted_train = clean_corrupted_images(train_dir)
+corrupted_val = clean_corrupted_images(val_dir)
+print(f"Removed {corrupted_train} corrupted images from train, {corrupted_val} from val")
+
 train_generator = train_datagen.flow_from_directory(
     train_dir,
     target_size = (224,224),
