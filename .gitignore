@@ -19,12 +19,9 @@ Stone_Data/
 *.png
 *.jpeg
 
-# API Keys and Secrets
+# Environment and Secrets
 .env
 .env.local
-*.key
-*_api_key.txt
-secrets.txt
 
 # Model outputs
 class_indices.json
