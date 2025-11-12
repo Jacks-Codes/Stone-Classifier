@@ -14,12 +14,20 @@ env/
 *.pb
 *.ckpt
 stone_data/
+Stone_Data/
 *.jpg
 *.png
 *.jpeg
 
-# API
+# API Keys and Secrets
 .env
+.env.local
+*.key
+*_api_key.txt
+secrets.txt
+
+# Model outputs
+class_indices.json
 
 # OS
 .DS_Store
