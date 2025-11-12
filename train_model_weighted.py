@@ -29,32 +29,43 @@ train_datagen = ImageDataGenerator(
 
 val_datagen = ImageDataGenerator(rescale = 1./255)
 
-# Clean up corrupted images before training
+# Check for obviously corrupted images (but don't delete - just warn)
 print("\nChecking for corrupted images...")
 from PIL import Image
 import glob
 
-def clean_corrupted_images(directory):
-    """Remove corrupted image files."""
-    corrupted_count = 0
+def check_corrupted_images(directory):
+    """Check for corrupted image files without deleting."""
+    corrupted = []
     image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']
     
     for ext in image_extensions:
         for img_path in glob.glob(os.path.join(directory, '**', ext), recursive=True):
             try:
+                # Try to open and load the image
                 img = Image.open(img_path)
-                img.verify()
+                img.load()  # Actually load the image data
+                img.close()
             except Exception as e:
-                print(f"Removing corrupted image: {img_path}")
-                os.remove(img_path)
-                corrupted_count += 1
+                # Only flag as corrupted if it's a real error (not just a warning)
+                if "UnidentifiedImageError" in str(type(e).__name__) or "cannot identify" in str(e).lower():
+                    corrupted.append(img_path)
+                    print(f"Found corrupted image: {img_path}")
     
-    return corrupted_count
+    return corrupted
 
-corrupted_train = clean_corrupted_images(train_dir)
-corrupted_val = clean_corrupted_images(val_dir)
-print(f"Removed {corrupted_train} corrupted images from train, {corrupted_val} from val")
+corrupted_train = check_corrupted_images(train_dir)
+corrupted_val = check_corrupted_images(val_dir)
 
+if corrupted_train or corrupted_val:
+    print(f"\nWARNING: Found {len(corrupted_train)} corrupted images in train, {len(corrupted_val)} in val")
+    print("These will be skipped during training. Consider removing them manually if needed.")
+    print("\nTo see the list, run: python3 find_corrupted_images.py")
+else:
+    print("No corrupted images found.")
+
+# Create generators with error handling
+# ImageDataGenerator will skip corrupted images automatically
 train_generator = train_datagen.flow_from_directory(
     train_dir,
     target_size = (224,224),
@@ -133,13 +144,23 @@ model.compile(
 )
 
 print("\nStarting training with class weights...")
-history = model.fit(
-    train_generator,
-    epochs = epochs,
-    validation_data = val_generator,
-    class_weight = class_weights,  # Add class weights here
-    verbose = 1
-)
+# Wrap training in error handling to skip corrupted images
+try:
+    history = model.fit(
+        train_generator,
+        epochs = epochs,
+        validation_data = val_generator,
+        class_weight = class_weights,  # Add class weights here
+        verbose = 1
+    )
+except Exception as e:
+    if "UnidentifiedImageError" in str(type(e).__name__) or "cannot identify" in str(e):
+        print(f"\nERROR: Corrupted image encountered during training: {e}")
+        print("Please run 'python3 find_corrupted_images.py' to identify and remove corrupted images.")
+        print("Then re-run training.")
+        raise
+    else:
+        raise
 
 model.save('stone_classifier_model_weighted.h5')
 
